@@ -8,7 +8,6 @@ import (
 
 	"goji.io"
 	"goji.io/pat"
-	"golang.org/x/net/context"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -38,15 +37,16 @@ func main() {
 		panic(err)
 	}
 	defer session.Close()
+
 	session.SetMode(mgo.Monotonic, true)
 	ensureIndex(session)
 
 	mux := goji.NewMux()
-	mux.HandleFuncC(pat.Get("/books"), allBooks(session))
-	mux.HandleFuncC(pat.Post("/books"), addBook(session))
-	mux.HandleFuncC(pat.Get("/books/:isbn"), bookByISBN(session))
-	mux.HandleFuncC(pat.Put("/books/:isbn"), updateBook(session))
-	mux.HandleFuncC(pat.Delete("/books/:isbn"), deleteBook(session))
+	mux.HandleFunc(pat.Get("/books"), allBooks(session))
+	mux.HandleFunc(pat.Post("/books"), addBook(session))
+	mux.HandleFunc(pat.Get("/books/:isbn"), bookByISBN(session))
+	mux.HandleFunc(pat.Put("/books/:isbn"), updateBook(session))
+	mux.HandleFunc(pat.Delete("/books/:isbn"), deleteBook(session))
 	http.ListenAndServe("localhost:8080", mux)
 }
 
@@ -57,20 +57,20 @@ func ensureIndex(s *mgo.Session) {
 	c := session.DB("store").C("books")
 
 	index := mgo.Index{
-		Key: []string{"isbn"},
-		Unique: true,
-		DropDups: true,
+		Key:        []string{"isbn"},
+		Unique:     true,
+		DropDups:   true,
 		Background: true,
-		Sparse: true,
+		Sparse:     true,
 	}
 	err := c.EnsureIndex(index)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
 
-func allBooks(s *mgo.Session) goji.HandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func allBooks(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
 
@@ -93,8 +93,8 @@ func allBooks(s *mgo.Session) goji.HandlerFunc {
 	}
 }
 
-func addBook(s *mgo.Session) goji.HandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func addBook(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
 
@@ -121,17 +121,17 @@ func addBook(s *mgo.Session) goji.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", r.URL.Path + "/" + book.ISBN)
+		w.Header().Set("Location", r.URL.Path+"/"+book.ISBN)
 		w.WriteHeader(http.StatusCreated)
 	}
 }
 
-func bookByISBN(s *mgo.Session) goji.HandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func bookByISBN(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
 
-		isbn := pat.Param(ctx, "isbn")
+		isbn := pat.Param(r, "isbn")
 
 		c := session.DB("store").C("books")
 
@@ -157,12 +157,12 @@ func bookByISBN(s *mgo.Session) goji.HandlerFunc {
 	}
 }
 
-func updateBook(s *mgo.Session) goji.HandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func updateBook(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
 
-		isbn := pat.Param(ctx, "isbn")
+		isbn := pat.Param(r, "isbn")
 
 		var book Book
 		decoder := json.NewDecoder(r.Body)
@@ -191,12 +191,12 @@ func updateBook(s *mgo.Session) goji.HandlerFunc {
 	}
 }
 
-func deleteBook(s *mgo.Session) goji.HandlerFunc {
-	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func deleteBook(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
 
-		isbn := pat.Param(ctx, "isbn")
+		isbn := pat.Param(r, "isbn")
 
 		c := session.DB("store").C("books")
 
