@@ -7,7 +7,6 @@ import (
 
 	"goji.io"
 	"goji.io/pat"
-	"golang.org/x/net/context"
 )
 
 type book struct {
@@ -34,19 +33,19 @@ var bookStore = []book{
 
 func main() {
 	mux := goji.NewMux()
-	mux.HandleFuncC(pat.Get("/books"), allBooks)
-	mux.HandleFuncC(pat.Get("/books/:isbn"), bookByISBN)
-	mux.UseC(logging)
+	mux.HandleFunc(pat.Get("/books"), allBooks)
+	mux.HandleFunc(pat.Get("/books/:isbn"), bookByISBN)
+	mux.Use(logging)
 	http.ListenAndServe("localhost:8080", mux)
 }
 
-func allBooks(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func allBooks(w http.ResponseWriter, r *http.Request) {
 	jsonOut, _ := json.Marshal(bookStore)
 	fmt.Fprintf(w, string(jsonOut))
 }
 
-func bookByISBN(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	isbn := pat.Param(ctx, "isbn")
+func bookByISBN(w http.ResponseWriter, r *http.Request) {
+	isbn := pat.Param(r, "isbn")
 	for _, b := range bookStore {
 		if b.ISBN == isbn {
 			jsonOut, _ := json.Marshal(b)
@@ -57,10 +56,10 @@ func bookByISBN(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func logging(h goji.Handler) goji.Handler {
-	fn := func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func logging(h http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Received request: %v\n", r.URL)
-		h.ServeHTTPC(ctx, w, r)
+		h.ServeHTTP(w, r)
 	}
-	return goji.HandlerFunc(fn)
+	return http.HandlerFunc(fn)
 }
