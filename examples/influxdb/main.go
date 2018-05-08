@@ -1,3 +1,25 @@
+//  https://tutorialedge.net/golang/parsing-xml-with-golang/
+
+/*
+-------
+Duracao:  =(getEndTime-getStartTime)
+
+getEndTime("<item name="Responsavel">williamjablonski@dellemc.com</item>
+</metadata>
+<status status="PASS" endtime="Value" starttime=")
+
+getStartTime(<item name="Responsavel">williamjablonski@dellemc.com</item>
+</metadata>
+<status status="PASS" endtime="*" starttime="Value"></status>)
+-------
+Suite: count("<suite>")
+-------
+Test: count("<test")
+-------
+Keyword: count("<kw")
+-------
+*/
+
 package main
 
 import (
@@ -7,6 +29,9 @@ import (
 	"log"
 	"math/rand"
 	"time"
+	"io/ioutil"
+	"os"
+	"encoding/xml"
 )
 
 const (
@@ -18,11 +43,12 @@ const (
 var clusters = []string{"public", "private"}
 
 func main() {
+	//create conection
 	c := influxDBClient()
-	createMetrics(c)
-	for _, cluster := range clusters {
-		log.Printf("Mean values: cluster='%s', cpu_usage='%f'", cluster, meanCpuUsage(c, cluster))
-	}
+	//parse XML
+	parseXml()
+	//send data
+	// ?
 }
 
 func influxDBClient() client.Client {
@@ -37,70 +63,18 @@ func influxDBClient() client.Client {
 	return c
 }
 
-func createMetrics(c client.Client) {
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  database,
-		Precision: "s",
-	})
-
+func parseXml(){
+	
+	// Open our xmlFile
+	xmlFile, err := os.Open("reports/meuvivo/output.xml")
+	// if we os.Open returns an error then handle it
 	if err != nil {
-		log.Fatalln("Error: ", err)
+		fmt.Println(err)
 	}
 
-	eventTime := time.Now().Add(time.Second * -20)
-
-	var t time.Duration
-	for t = 0; t < 20; t++ {
-		for i := 0; i < 100; i++ {
-			clusterIndex := rand.Intn(len(clusters))
-			tags := map[string]string{
-				"cluster": clusters[clusterIndex],
-				"host":    fmt.Sprintf("192.168.%d.%d", clusterIndex, rand.Intn(100)),
-			}
-
-			fields := map[string]interface{}{
-				"cpu_usage":  rand.Float64() * 100.0,
-				"disk_usage": rand.Float64() * 100.0,
-			}
-
-			point, err := client.NewPoint(
-				"node_status",
-				tags,
-				fields,
-				eventTime.Add(time.Second*10),
-			)
-			if err != nil {
-				log.Fatalln("Error: ", err)
-			}
-
-			bp.AddPoint(point)
-		}
-	}
-
-	err = c.Write(bp)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func meanCpuUsage(c client.Client, cluster string) float64 {
-	q := client.Query{
-		Command:  fmt.Sprintf("select mean(cpu_usage) from node_status where cluster = '%s'", cluster),
-		Database: database,
-	}
-
-	resp, err := c.Query(q)
-	if err != nil {
-		log.Fatalln("Error: ", err)
-	}
-	if resp.Error() != nil {
-		log.Fatalln("Error: ", resp.Error())
-	}
-
-	res, err := resp.Results[0].Series[0].Values[0][1].(json.Number).Float64()
-	if err != nil {
-		log.Fatalln("Error: ", err)
-	}
-
-	return res
+	fmt.Println("Successfully Opened output.xml")
+	// defer the closing of our xmlFile so that we can parse it later on
+	defer xmlFile.Close()
+	
+	
 }
